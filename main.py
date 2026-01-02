@@ -10,6 +10,7 @@
 # Bottom-right: (height-1, width-1)
 #
 
+import math
 import random
 import shutil
 from typing import NewType
@@ -18,9 +19,6 @@ import keyboard
 import sys
 
 char = NewType('Char', str)
-
-
-
 
 
 class Vector2:
@@ -37,12 +35,16 @@ class Symbol:
     floor = "\033[37m■\033[0m"
     cloud = "☁"
 
+    
+
 
 
 class Clock:
-    def tick(self, fps: float):
-        time.sleep(1/fps)
-
+    def tick(self, fps: float, difference: float=0.0):
+        if (1/fps) - difference >= 0:
+            time.sleep((1/fps) - difference)
+        else:
+            time.sleep(1/fps)
 
 class GameObject:
     def __init__(self, symbol: char, x:int=None, y:int=None, xy:tuple[int, int]=None):
@@ -128,7 +130,13 @@ class Cactus(GameObject):
 
 
 class Game:
-    def __init__(self):
+    fps: int = 0
+    def __init__(self, fps: int = 0):
+        if fps != 0:
+            Game.fps = fps
+        else:
+            Game.fps = 15
+        self.score: float = 0   # displayed as int
         size = shutil.get_terminal_size()
         self.width = size.columns
         self.height = size.lines-1
@@ -144,7 +152,12 @@ class Game:
                     row.append(GameObject(Symbol.empty, x, y))
             self.gameboard.append(row)
 
+        self.update_score_display()
+
+        
+
     def draw(self):
+        self.update_score_display()
         sys.stdout.write("\033[H")
         for row in self.gameboard:
             sys.stdout.write("".join(obj.symbol for obj in row) + "\n")
@@ -153,6 +166,15 @@ class Game:
 
     def update(self):
         index = self.gameboard.index(Symbol.Dino)
+
+    
+    def update_score_display(self):
+        self.score += 1/Game.fps # 1 score/second
+        score_str = f"Score: {math.ceil(self.score)}"
+        for i, char in enumerate(score_str):
+            if i < self.width:
+                self.gameboard[1][i] = GameObject(char, x=i, y=0)
+
 
     def set_symbol(self, gmeObj: GameObject):
         if isinstance(gmeObj, Dino):
@@ -181,17 +203,18 @@ class Game:
         return False
 
 
-game = Game()
+game = Game(15)
 sys.stdout.write("\033[2J")     # Clear screen
 sys.stdout.write("\033[?25l")   # hide cursor
 sys.stdout.flush()
 game.draw()
 dino = Dino(Symbol.dino, x = 5, y = game.height - 2)
 clock = Clock()
-print(game.gameboard)
+# print(game.gameboard)
 keyboard.add_hotkey("space", dino.jump)
 cacti = [Cactus(Symbol.cactus, x=100, y=game.height - 2, gme=game), Cactus(Symbol.cactus, x=120, y=game.height - 2, gme=game)]
 while True:
+    start: float = time.time()
     dino.update()
     game.set_symbol(dino)
 
@@ -217,6 +240,7 @@ while True:
             cacti.append(Cactus(Symbol.cactus, gme=game, x=game.width - 1, y=game.height - 2))
 
     game.draw()
-    clock.tick(15) #Pygmae like for fps
+    difference: float = abs(start - time.time()) 
+    clock.tick(game.fps, difference) #Pygmae like for fps
 
 
